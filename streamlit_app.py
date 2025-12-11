@@ -7,21 +7,17 @@ import os
 # --- إعداد الصفحة ---
 st.set_page_config(page_title="Employee Attrition Prediction", layout="wide")
 
-# --- تحميل الموديل (مع الكاش عشان ميعملش تحميل كل شوية) ---
+# --- تحميل الموديل ---
 @st.cache_resource
 def load_model():
-    model_path = 'ensemble_attrition_model.pkl'
-    try:
-        model = joblib.load(model_path)
-        return model
-    except Exception as e:
-        st.error(f"Error loading model: {e}")
-        return None
+    if os.path.exists('ensemble_attrition_model.pkl'):
+        return joblib.load('ensemble_attrition_model.pkl')
+    return None
 
 model = load_model()
 OPTIMAL_THRESHOLD = 0.43
 
-# 🛑 قائمة الأعمدة (زي ما هي بالظبط)
+# 🛑 قائمة الأعمدة (نفس ترتيب الموديل بالظبط)
 FEATURE_COLS = [
     'Age', 'DailyRate', 'DistanceFromHome', 'Education', 'EnvironmentSatisfaction', 'Gender',
     'HourlyRate', 'JobInvolvement', 'JobLevel', 'JobSatisfaction', 'MonthlyRate', 
@@ -39,130 +35,151 @@ FEATURE_COLS = [
 
 # --- العنوان ---
 st.title("👔 Employee Attrition Prediction")
-st.markdown("Enter employee details to predict if they are likely to leave the company.")
 
-# --- الفورم (البيانات) ---
+if not model:
+    st.error("❌ Model file not found! Please make sure 'ensemble_attrition_model.pkl' is in the repo.")
+    st.stop()
+
+# --- الفورم (تجميع البيانات) ---
 with st.form("attrition_form"):
     col1, col2, col3 = st.columns(3)
-
+    
+    # نستخدم نفس أسماء الـ HTML Form القديمة عشان نستخدم نفس دالة المعالجة
     with col1:
-        age = st.number_input("Age", min_value=18, max_value=80, value=30)
-        daily_rate = st.number_input("Daily Rate", min_value=100, max_value=2000, value=800)
-        distance = st.number_input("Distance From Home", min_value=1, max_value=30, value=5)
-        education = st.selectbox("Education Level", [1, 2, 3, 4, 5])
-        env_satisfaction = st.selectbox("Environment Satisfaction", [1, 2, 3, 4])
+        age = st.number_input("Age", 18, 80, 30)
+        daily_rate = st.number_input("Daily Rate", 100, 2000, 800)
+        distance = st.number_input("Distance From Home", 1, 30, 5)
+        education = st.selectbox("Education", [1, 2, 3, 4, 5])
+        env_sat = st.selectbox("Environment Satisfaction", [1, 2, 3, 4])
         gender = st.radio("Gender", ["Male", "Female"])
         
     with col2:
-        hourly_rate = st.number_input("Hourly Rate", min_value=30, max_value=100, value=50)
-        job_involvement = st.selectbox("Job Involvement", [1, 2, 3, 4])
+        hourly_rate = st.number_input("Hourly Rate", 30, 100, 50)
+        job_inv = st.selectbox("Job Involvement", [1, 2, 3, 4])
         job_level = st.selectbox("Job Level", [1, 2, 3, 4, 5])
-        job_satisfaction = st.selectbox("Job Satisfaction", [1, 2, 3, 4])
-        monthly_rate = st.number_input("Monthly Rate", min_value=2000, max_value=30000, value=15000)
-        num_companies = st.number_input("Num Companies Worked", min_value=0, max_value=10, value=1)
+        job_sat = st.selectbox("Job Satisfaction", [1, 2, 3, 4])
+        monthly_rate = st.number_input("Monthly Rate", 2000, 30000, 15000)
+        num_comp = st.number_input("Number of Companies Worked in", 0, 10, 1) # الاسم القديم
         over_time = st.radio("Over Time", ["Yes", "No"])
 
     with col3:
-        percent_hike = st.number_input("Percent Salary Hike", min_value=10, max_value=30, value=15)
+        percent_hike = st.number_input("Percent Salary Hike", 10, 30, 15)
         perf_rating = st.selectbox("Performance Rating", [1, 2, 3, 4])
-        rel_satisfaction = st.selectbox("Relationship Satisfaction", [1, 2, 3, 4])
-        stock_level = st.selectbox("Stock Option Level", [0, 1, 2, 3])
-        total_working_years = st.number_input("Total Working Years", min_value=0, max_value=40, value=10)
-        training_times = st.number_input("Training Times Last Year", min_value=0, max_value=6, value=2)
-        work_life_balance = st.selectbox("Work Life Balance", [1, 2, 3, 4])
+        rel_sat = st.selectbox("Relationship Satisfaction", [1, 2, 3, 4])
+        stock_opt = st.selectbox("Stock Option Level", [0, 1, 2, 3])
+        total_years = st.number_input("Total Working Years", 0, 40, 10)
+        training_times = st.number_input("Training Times Last Year", 0, 6, 2)
+        work_life = st.selectbox("Work Life Balance", [1, 2, 3, 4])
 
-    st.markdown("### Experience & History")
-    col4, col5 = st.columns(2)
-    with col4:
-        years_at_company = st.number_input("Years At Company", min_value=0, max_value=40, value=5)
-        years_current_role = st.number_input("Years In Current Role", min_value=0, max_value=20, value=2)
-    with col5:
-        years_promotion = st.number_input("Years Since Last Promotion", min_value=0, max_value=20, value=1)
-        years_manager = st.number_input("Years With Curr Manager", min_value=0, max_value=20, value=2)
+    st.markdown("### 📅 Experience")
+    c4, c5 = st.columns(2)
+    with c4:
+        years_comp = st.number_input("Years At Company", 0, 40, 5)
+        years_role = st.number_input("Years In Current Role", 0, 20, 2)
+    with c5:
+        years_promo = st.number_input("Years Since Last Promotion", 0, 20, 1)
+        years_manager = st.number_input("Years With Curr Manager", 0, 20, 2)
 
-    st.markdown("### Categorical Details")
-    col6, col7 = st.columns(2)
-    with col6:
-        business_travel = st.selectbox("Business Travel", ["Travel_Rarely", "Travel_Frequently", "Non-Travel"])
-        department = st.selectbox("Department", ["Research & Development", "Sales", "Human Resources"])
-        education_field = st.selectbox("Education Field", ["Life Sciences", "Medical", "Marketing", "Technical Degree", "Human Resources", "Other"])
-    with col7:
+    st.markdown("### 📋 Categorical")
+    c6, c7 = st.columns(2)
+    with c6:
+        bus_travel = st.selectbox("Business Travel", ["Travel_Rarely", "Travel_Frequently", "Non-Travel"])
+        dept = st.selectbox("Department", ["Research & Development", "Sales", "Human Resources"])
+        edu_field = st.selectbox("Education Field", ["Life Sciences", "Medical", "Marketing", "Technical Degree", "Human Resources", "Other"])
+    with c7:
         job_role = st.selectbox("Job Role", ["Sales Executive", "Research Scientist", "Laboratory Technician", "Manufacturing Director", "Healthcare Representative", "Manager", "Sales Representative", "Research Director", "Human Resources"])
-        marital_status = st.selectbox("Marital Status", ["Married", "Single", "Divorced"])
+        marital = st.selectbox("Marital Status", ["Married", "Single", "Divorced"])
 
-    # زرار التنبؤ
-    submit_button = st.form_submit_button("🚀 Predict Attrition")
+    submit = st.form_submit_button("🚀 Predict")
 
-# --- منطق المعالجة والتنبؤ ---
-if submit_button:
-    if model:
-        # 1. تجميع البيانات في Dictionary
-        data = {
-            'Age': age, 'DailyRate': daily_rate, 'DistanceFromHome': distance, 'Education': education,
-            'EnvironmentSatisfaction': env_satisfaction, 'Gender': 1 if gender == "Male" else 0,
-            'HourlyRate': hourly_rate, 'JobInvolvement': job_involvement, 'JobLevel': job_level,
-            'JobSatisfaction': job_satisfaction, 'MonthlyRate': monthly_rate, 
-            'NumCompaniesWorked': num_companies, 'OverTime': 1 if over_time == "Yes" else 0,
-            'PercentSalaryHike': percent_hike, 'PerformanceRating': perf_rating,
-            'RelationshipSatisfaction': rel_satisfaction, 'StockOptionLevel': stock_level,
-            'TotalWorkingYears': total_working_years, 'TrainingTimesLastYear': training_times,
-            'WorkLifeBalance': work_life_balance, 'YearsAtCompany': years_at_company,
-            'YearsInCurrentRole': years_current_role, 'YearsSinceLastPromotion': years_promotion,
-            'YearsWithCurrManager': years_manager,
-            # سيتم معالجتها بالأسفل
-            'BusinessTravel': business_travel, 'Department': department,
-            'EducationField': education_field, 'JobRole': job_role, 'MaritalStatus': marital_status
-        }
+# --- دالة المعالجة (نفس منطق Flask بالظبط) ---
+def preprocess_data(input_dict):
+    df = pd.DataFrame([input_dict])
+    
+    # 1. توحيد الأسماء (نفس القاموس اللي نجح في Flask)
+    rename_map = {
+        'Daily Rate': 'DailyRate',
+        'Distance From Home': 'DistanceFromHome',
+        'Environment Satisfaction': 'EnvironmentSatisfaction',
+        'Hourly Rate': 'HourlyRate',
+        'Job Involvement': 'JobInvolvement',
+        'Job Level': 'JobLevel',
+        'Job Satisfaction': 'JobSatisfaction',
+        'Monthly Rate': 'MonthlyRate',
+        'Number of Companies Worked in': 'NumCompaniesWorked', # تصحيح الاسم
+        'Percent Salary Hike': 'PercentSalaryHike',
+        'Performance Rating': 'PerformanceRating',
+        'Relationship Satisfaction': 'RelationshipSatisfaction',
+        'Stock Option Level': 'StockOptionLevel',
+        'Total Working Years': 'TotalWorkingYears',
+        'Training Times Last Year': 'TrainingTimesLastYear',
+        'Work Life Balance': 'WorkLifeBalance',
+        'Years At Company': 'YearsAtCompany',
+        'Years In Current Role': 'YearsInCurrentRole',
+        'Years Since Last Promotion': 'YearsSinceLastPromotion',
+        'Years With Curr Manager': 'YearsWithCurrManager',
+        'Over Time': 'OverTime',
+        'Business Travel': 'BusinessTravel',
+        'Education Field': 'EducationField',
+        'Job Role': 'JobRole',
+        'Marital Status': 'MaritalStatus'
+    }
+    df = df.rename(columns=rename_map)
+    
+    # 2. Binary Encoding
+    binary_map = {"Male": 1, "Female": 0, "Yes": 1, "No": 0}
+    if 'Gender' in df.columns: df['Gender'] = df['Gender'].map(binary_map)
+    if 'OverTime' in df.columns: df['OverTime'] = df['OverTime'].map(binary_map)
+    
+    # 3. One Hot Encoding
+    ohe_cols = ['BusinessTravel', 'Department', 'EducationField', 'JobRole', 'MaritalStatus']
+    df = pd.get_dummies(df, columns=[c for c in ohe_cols if c in df.columns], prefix_sep='_')
+    
+    # 4. تنظيف الأسماء (لأن pd.get_dummies أحياناً بتسيب مسافات)
+    # الموديل متدرب على 'Department_Research & Development' (بمسافات)، فمش هنشيلها
+    
+    # 5. Reindexing (أهم خطوة)
+    final_df = df.reindex(columns=FEATURE_COLS, fill_value=0)
+    return final_df
 
-        # 2. إنشاء DataFrame
-        data_df = pd.DataFrame([data])
-
-        # 3. One-Hot Encoding (يدوي لضمان التطابق مع الموديل)
-        # الطريقة دي أضمن في Streamlit عشان نتفادى مشاكل الـ dummies
+if submit:
+    # تجميع الداتا بنفس مفاتيح الـ Form القديمة
+    raw_data = {
+        'Age': age, 'Daily Rate': daily_rate, 'Distance From Home': distance, 'Education': education,
+        'Environment Satisfaction': env_sat, 'Gender': gender, 'Hourly Rate': hourly_rate,
+        'Job Involvement': job_inv, 'Job Level': job_level, 'Job Satisfaction': job_sat,
+        'Monthly Rate': monthly_rate, 'Number of Companies Worked in': num_comp,
+        'Over Time': over_time, 'Percent Salary Hike': percent_hike, 'Performance Rating': perf_rating,
+        'Relationship Satisfaction': rel_sat, 'Stock Option Level': stock_opt,
+        'Total Working Years': total_years, 'Training Times Last Year': training_times,
+        'Work Life Balance': work_life, 'Years At Company': years_comp,
+        'Years In Current Role': years_role, 'Years Since Last Promotion': years_promo,
+        'Years With Curr Manager': years_manager, 'Business Travel': bus_travel,
+        'Department': dept, 'Education Field': edu_field, 'Job Role': job_role,
+        'Marital Status': marital
+    }
+    
+    final_df = preprocess_data(raw_data)
+    
+    try:
+        prob = model.predict_proba(final_df)[0][1]
+        pred = 1 if prob >= OPTIMAL_THRESHOLD else 0
         
-        # تجهيز الداتا فريم بكل الأعمدة بقيم صفرية
-        final_df = pd.DataFrame(0, index=[0], columns=FEATURE_COLS)
-        
-        # تعبئة القيم الرقمية والمباشرة
-        for col in FEATURE_COLS:
-            if col in data:
-                final_df[col] = data[col]
-
-        # تعبئة الـ One-Hot Encoded يدوياً
-        # Business Travel
-        if f'BusinessTravel_{business_travel}' in FEATURE_COLS:
-            final_df[f'BusinessTravel_{business_travel}'] = 1
-            
-        # Department
-        if f'Department_{department}' in FEATURE_COLS:
-            final_df[f'Department_{department}'] = 1
-            
-        # Education Field
-        if f'EducationField_{education_field}' in FEATURE_COLS:
-            final_df[f'EducationField_{education_field}'] = 1
-            
-        # Job Role
-        if f'JobRole_{job_role}' in FEATURE_COLS:
-            final_df[f'JobRole_{job_role}'] = 1
-            
-        # Marital Status
-        if f'MaritalStatus_{marital_status}' in FEATURE_COLS:
-            final_df[f'MaritalStatus_{marital_status}'] = 1
-
-        # 4. التنبؤ
-        try:
-            probability = model.predict_proba(final_df)[0][1]
-            prediction = 1 if probability >= OPTIMAL_THRESHOLD else 0
-            
-            st.divider()
-            if prediction == 1:
-                st.error(f"⚠️ Prediction: Likely to LEAVE (Attrition: Yes)")
-                st.write(f"Probability: **{probability:.2%}**")
+        st.divider()
+        col_res1, col_res2 = st.columns([1, 2])
+        with col_res1:
+            if pred == 1:
+                st.error("### ⚠️ Likely to LEAVE")
             else:
-                st.success(f"✅ Prediction: Likely to STAY (Attrition: No)")
-                st.write(f"Probability of leaving: **{probability:.2%}**")
-                
-        except Exception as e:
-            st.error(f"Prediction Error: {e}")
-    else:
-        st.warning("Model is not loaded.")
+                st.success("### ✅ Likely to STAY")
+        
+        with col_res2:
+            st.metric("Attrition Probability", f"{prob:.2%}", delta_color="inverse")
+            st.caption(f"Threshold used: {OPTIMAL_THRESHOLD}")
+
+        # --- Debug info (عشان تتأكد إن الداتا صح) ---
+        with st.expander("🔍 Show Debug Data (Data sent to model)"):
+            st.write(final_df)
+            
+    except Exception as e:
+        st.error(f"Prediction Error: {e}")
