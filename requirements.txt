@@ -1,7 +1,6 @@
-Flask
+streamlit
 pandas
 numpy
 joblib
-scikit-learn
 xgboost
-gunicorn
+scikit-learn
